@@ -11,7 +11,7 @@ documentation = "https://docs.rs/hyper-tls"
 [dependencies]
 futures = "0.1"
 native-tls = "0.1"
-hyper = { git = "https://github.com/hyperium/hyper", branch = "tokio" }
+hyper = { git = "https://github.com/hyperium/hyper" }
 tokio-core = "0.1"
 tokio-service = "0.1"
 tokio-tls = "0.1"
