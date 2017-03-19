@@ -30,6 +30,7 @@ extern crate futures;
 extern crate hyper;
 extern crate native_tls;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate tokio_service;
 extern crate tokio_tls;
 
