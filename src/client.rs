@@ -3,7 +3,7 @@ use std::io;
 
 use futures::{Future, Poll};
 use hyper::client::HttpConnector;
-use hyper::Url;
+use hyper::Uri;
 use native_tls::TlsConnector;
 use tokio_core::reactor::Handle;
 use tokio_service::Service;
@@ -37,14 +37,14 @@ impl fmt::Debug for HttpsConnector {
 }
 
 impl Service for HttpsConnector {
-    type Request = Url;
+    type Request = Uri;
     type Response = MaybeHttpsStream;
     type Error = io::Error;
     type Future = HttpsConnecting;
 
-    fn call(&self, url: Url) -> Self::Future {
-        let is_https = url.scheme() == "https";
-        let host = match url.host_str() {
+    fn call(&self, uri: Uri) -> Self::Future {
+        let is_https = uri.scheme() == Some("https");
+        let host = match uri.host() {
             Some(host) => host.to_owned(),
             None => return HttpsConnecting(
                 Box::new(
@@ -57,7 +57,7 @@ impl Service for HttpsConnector {
                 )
             ),
         };
-        let connecting = self.http.call(url);
+        let connecting = self.http.call(uri);
 
         HttpsConnecting(if is_https {
             Box::new(connecting.and_then(move |tcp| {
