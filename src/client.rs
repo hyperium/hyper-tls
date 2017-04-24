@@ -23,8 +23,10 @@ impl HttpsConnector {
     ///
     /// Takes number of DNS worker threads.
     pub fn new(threads: usize, handle: &Handle) -> HttpsConnector {
+        let mut http = HttpConnector::new(threads, handle);
+        http.enforce_http(false);
         HttpsConnector {
-            http: HttpConnector::new(threads, handle),
+            http: http,
         }
     }
 }
