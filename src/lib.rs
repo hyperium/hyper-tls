@@ -19,7 +19,7 @@
 //!         .build(&core.handle());
 //!
 //!     let res = core.run(client.get("https://www.rust-lang.org".parse().unwrap())).unwrap();
-//!     assert_eq!(*res.status(), ::hyper::Ok);
+//!     assert_eq!(res.status(), ::hyper::Ok);
 //! }
 //! ```
 #![deny(warnings)]
