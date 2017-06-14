@@ -1,10 +1,11 @@
 [package]
 name = "hyper-tls"
-version = "0.0.0"
+version = "0.1.0"
 description = "Default TLS implementation for use with hyper"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 license = "MIT/Apache-2.0"
 keywords = ["hyper", "tls", "http", "https", "ssl"]
+homepage = "https://hyper.rs"
 repository = "https://github.com/hyperium/hyper-tls"
 documentation = "https://docs.rs/hyper-tls"
 
