@@ -4,20 +4,36 @@ use std::io;
 use futures::{Future, Poll};
 use hyper::client::HttpConnector;
 use hyper::Uri;
-use native_tls::TlsConnector;
+use native_tls::{TlsConnector, self};
 use tokio_core::reactor::Handle;
 use tokio_service::Service;
 use tokio_tls::TlsConnectorExt;
 
 use stream::MaybeHttpsStream;
 
-/// A Connector for the `https` scheme.
-#[derive(Clone)]
-pub struct HttpsConnector {
-    http: HttpConnector,
+/// A builder that creates a TlsConnector
+pub trait TlsConnectorBuilder {
+    /// Is called by the HttpConnector service to create a TlsConnector
+    fn build(&self) -> native_tls::Result<TlsConnector>; 
 }
 
-impl HttpsConnector {
+#[derive(Debug)]
+pub struct DefaultTlsConnectorBuilder {}
+
+impl TlsConnectorBuilder for DefaultTlsConnectorBuilder {
+    fn build(&self) -> native_tls::Result<TlsConnector> {
+        TlsConnector::builder().and_then(|c| c.build())
+    }
+}
+
+/// A Connector for the `https` scheme.
+#[derive(Clone)]
+pub struct HttpsConnector<Builder = DefaultTlsConnectorBuilder> {
+    http: HttpConnector,
+    tls_builder: Builder,
+}
+
+impl HttpsConnector<DefaultTlsConnectorBuilder> {
 
     /// Construct a new HttpsConnector.
     ///
@@ -27,6 +43,23 @@ impl HttpsConnector {
         http.enforce_http(false);
         HttpsConnector {
             http: http,
+            tls_builder: DefaultTlsConnectorBuilder {},
+        }
+    }
+}
+
+impl<Builder: TlsConnectorBuilder> HttpsConnector<Builder> {
+    /// Construct a new HttpsConnector with a tls connector builder.
+    ///
+    /// Takes number of DNS worker threads and the tls connector builder.
+    pub fn with_builder(threads: usize,
+                        handle: &Handle,
+                        builder: Builder) -> HttpsConnector<Builder> {
+        let mut http = HttpConnector::new(threads, handle);
+        http.enforce_http(false);
+        HttpsConnector {
+            http: http,
+            tls_builder: builder,
         }
     }
 }
@@ -38,7 +71,7 @@ impl fmt::Debug for HttpsConnector {
     }
 }
 
-impl Service for HttpsConnector {
+impl<Builder: TlsConnectorBuilder> Service for HttpsConnector<Builder> {
     type Request = Uri;
     type Response = MaybeHttpsStream;
     type Error = io::Error;
@@ -60,13 +93,12 @@ impl Service for HttpsConnector {
             ),
         };
         let connecting = self.http.call(uri);
+        let tls = self.tls_builder.build();
 
         HttpsConnecting(if is_https {
             Box::new(connecting.and_then(move |tcp| {
-                TlsConnector::builder()
-                    .and_then(|c| c.build())
-                    .map(|c| c.connect_async(&host, tcp))
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                tls.map(|c| c.connect_async(&host, tcp))
+                   .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
             }).and_then(|maybe_tls| {
                 maybe_tls.map(|tls| MaybeHttpsStream::Https(tls))
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
