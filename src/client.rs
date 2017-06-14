@@ -1,8 +1,9 @@
 use std::fmt;
 use std::io;
+use std::sync::Arc;
 
 use futures::{Future, Poll};
-use hyper::client::HttpConnector;
+use hyper::client::{Connect, HttpConnector};
 use hyper::Uri;
 use native_tls::TlsConnector;
 use tokio_core::reactor::Handle;
@@ -13,36 +14,48 @@ use stream::MaybeHttpsStream;
 
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
-pub struct HttpsConnector {
-    http: HttpConnector,
+pub struct HttpsConnector<T> {
+    http: T,
+    tls: Arc<TlsConnector>,
 }
 
-impl HttpsConnector {
+impl HttpsConnector<HttpConnector> {
 
     /// Construct a new HttpsConnector.
     ///
     /// Takes number of DNS worker threads.
-    pub fn new(threads: usize, handle: &Handle) -> HttpsConnector {
+    ///
+    /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
+    /// If you wish to use something besides the defaults, use `From::from`.
+    pub fn new(threads: usize, handle: &Handle) -> ::native_tls::Result<Self> {
         let mut http = HttpConnector::new(threads, handle);
         http.enforce_http(false);
+        let tls = TlsConnector::builder()?.build()?;
+        Ok(HttpsConnector::from((http, tls)))
+    }
+}
+
+impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
+    fn from(args: (T, TlsConnector)) -> HttpsConnector<T> {
         HttpsConnector {
-            http: http,
+            http: args.0,
+            tls: Arc::new(args.1),
         }
     }
 }
 
-impl fmt::Debug for HttpsConnector {
+impl<T> fmt::Debug for HttpsConnector<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpsConnector")
             .finish()
     }
 }
 
-impl Service for HttpsConnector {
+impl<T: Connect> Service for HttpsConnector<T> {
     type Request = Uri;
-    type Response = MaybeHttpsStream;
+    type Response = MaybeHttpsStream<T::Output>;
     type Error = io::Error;
-    type Future = HttpsConnecting;
+    type Future = HttpsConnecting<T::Output>;
 
     fn call(&self, uri: Uri) -> Self::Future {
         let is_https = uri.scheme() == Some("https");
@@ -59,32 +72,32 @@ impl Service for HttpsConnector {
                 )
             ),
         };
-        let connecting = self.http.call(uri);
+        let connecting = self.http.connect(uri);
+        let tls = self.tls.clone();
 
-        HttpsConnecting(if is_https {
-            Box::new(connecting.and_then(move |tcp| {
-                TlsConnector::builder()
-                    .and_then(|c| c.build())
-                    .map(|c| c.connect_async(&host, tcp))
+        let fut: BoxedFut<T::Output> = if is_https {
+            let fut = connecting.and_then(move |tcp| {
+                tls.connect_async(&host, tcp)
+                    .map(|conn| MaybeHttpsStream::Https(conn))
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-            }).and_then(|maybe_tls| {
-                maybe_tls.map(|tls| MaybeHttpsStream::Https(tls))
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-            }))
+            });
+            Box::new(fut)
         } else {
             Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
-        })
+        };
+        HttpsConnecting(fut)
     }
 
 }
 
+type BoxedFut<T> = Box<Future<Item=MaybeHttpsStream<T>, Error=io::Error>>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
-pub struct HttpsConnecting(Box<Future<Item=MaybeHttpsStream, Error=io::Error>>);
+pub struct HttpsConnecting<T>(BoxedFut<T>);
 
 
-impl Future for HttpsConnecting {
-    type Item = MaybeHttpsStream;
+impl<T> Future for HttpsConnecting<T> {
+    type Item = MaybeHttpsStream<T>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -92,7 +105,7 @@ impl Future for HttpsConnecting {
     }
 }
 
-impl fmt::Debug for HttpsConnecting {
+impl<T> fmt::Debug for HttpsConnecting<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.pad("HttpsConnecting")
     }

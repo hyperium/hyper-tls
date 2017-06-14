@@ -10,7 +10,7 @@ fn main() {
     let mut core = tokio_core::reactor::Core::new().unwrap();
     let handle = core.handle();
     let client = hyper::Client::configure()
-        .connector(hyper_tls::HttpsConnector::new(4, &handle))
+        .connector(hyper_tls::HttpsConnector::new(4, &handle).unwrap())
         .build(&handle);
 
     let work = client.get("https://hyper.rs".parse().unwrap()).and_then(|res| {
