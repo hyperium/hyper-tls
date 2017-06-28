@@ -15,6 +15,7 @@ use stream::MaybeHttpsStream;
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
 pub struct HttpsConnector<T> {
+    hostname_verification: bool,
     http: T,
     tls: Arc<TlsConnector>,
 }
@@ -35,9 +36,24 @@ impl HttpsConnector<HttpConnector> {
     }
 }
 
+impl<T> HttpsConnector<T> where T: Connect {
+    /// Disable hostname verification when connecting.
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before you use this method. If hostname
+    /// verification is not used, any valid certificate for any site will be
+    /// trusted for use from any other. This introduces a significant
+    /// vulnerability to man-in-the-middle attacks.
+    pub fn danger_disable_hostname_verification(&mut self, disable: bool) {
+        self.hostname_verification = !disable;
+    }
+}
+
 impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
     fn from(args: (T, TlsConnector)) -> HttpsConnector<T> {
         HttpsConnector {
+            hostname_verification: true,
             http: args.0,
             tls: Arc::new(args.1),
         }
@@ -74,10 +90,16 @@ impl<T: Connect> Service for HttpsConnector<T> {
         };
         let connecting = self.http.connect(uri);
         let tls = self.tls.clone();
+        let verification = self.hostname_verification;
 
         let fut: BoxedFut<T::Output> = if is_https {
             let fut = connecting.and_then(move |tcp| {
-                tls.connect_async(&host, tcp)
+                let handshake = if verification {
+                    tls.connect_async(&host, tcp)
+                } else {
+                    tls.danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication(tcp)
+                };
+                handshake
                     .map(|conn| MaybeHttpsStream::Https(conn))
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
             });
