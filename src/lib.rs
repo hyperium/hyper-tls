@@ -34,7 +34,7 @@ extern crate tokio_io;
 extern crate tokio_service;
 extern crate tokio_tls;
 
-pub use client::{HttpsConnector, HttpsConnecting};
+pub use client::{HttpsConnector, HttpsConnecting, Error};
 pub use stream::MaybeHttpsStream;
 
 mod client;
