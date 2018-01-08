@@ -6,6 +6,7 @@ use futures::{Future, Poll};
 use hyper::client::{Connect, HttpConnector};
 use hyper::Uri;
 use native_tls::TlsConnector;
+pub use native_tls::Error;
 use tokio_core::reactor::Handle;
 use tokio_service::Service;
 use tokio_tls::TlsConnectorExt;
@@ -28,7 +29,7 @@ impl HttpsConnector<HttpConnector> {
     ///
     /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
     /// If you wish to use something besides the defaults, use `From::from`.
-    pub fn new(threads: usize, handle: &Handle) -> ::native_tls::Result<Self> {
+    pub fn new(threads: usize, handle: &Handle) -> Result<Self, Error> {
         let mut http = HttpConnector::new(threads, handle);
         http.enforce_http(false);
         let tls = TlsConnector::builder()?.build()?;
