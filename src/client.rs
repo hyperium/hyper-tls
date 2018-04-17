@@ -97,13 +97,13 @@ where
     fn connect(&self, dst: Destination) -> Self::Future {
         let is_https = dst.scheme() == "https";
         let host = dst.host().to_owned();
-        
+
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
         let verification = self.hostname_verification;
         // Early abort if TLS is forced but can't be used
         if !is_https && self.force_https {
-            let err = io::Error::new(io::ErrorKind::Other, "TLS forced but TLS can't be used"); 
+            let err = io::Error::new(io::ErrorKind::Other, "TLS forced but TLS can't be used");
             return HttpsConnecting(Box::new(future::err(err)));
         }
         let fut: BoxedFut<T::Transport> = if is_https {
