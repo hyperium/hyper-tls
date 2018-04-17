@@ -28,7 +28,7 @@ impl HttpsConnector<HttpConnector> {
     /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
     /// If you wish to use something besides the defaults, use `From::from`.
     ///
-    /// # Warning
+    /// # Note
     /// By default this connector will use plain HTTP if the URL provded 
     /// uses the HTTP scheme (eg: http://example.com/).
     /// If you would like to force the use of HTTPS
@@ -96,13 +96,13 @@ where
 
     fn connect(&self, dst: Destination) -> Self::Future {
         let is_https = dst.scheme() == "https";
-        // Early abort if TLS is forced but can't be used
+        // Early abort if HTTPS is forced but can't be used
         if !is_https && self.force_https {
-            let err = io::Error::new(io::ErrorKind::Other, "TLS forced but TLS can't be used");
+            let err = io::Error::new(io::ErrorKind::Other, "HTTPS scheme forced but can't be used");
             return HttpsConnecting(Box::new(future::err(err)));
         }
+        
         let host = dst.host().to_owned();
-
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
         let verification = self.hostname_verification;
