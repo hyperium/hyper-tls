@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::sync::Arc;
 
-use futures::{Future, future, Poll};
+use futures::{future, Future, Poll};
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
 use native_tls::TlsConnector;
@@ -20,7 +20,6 @@ pub struct HttpsConnector<T> {
 }
 
 impl HttpsConnector<HttpConnector> {
-
     /// Construct a new HttpsConnector.
     ///
     /// Takes number of DNS worker threads.
@@ -29,13 +28,25 @@ impl HttpsConnector<HttpConnector> {
     /// If you wish to use something besides the defaults, use `From::from`.
     ///
     /// # Note
-    /// By default this connector will use plain HTTP if the URL provded 
+    /// By default this connector will use plain HTTP if the URL provded
     /// uses the HTTP scheme (eg: http://example.com/).
     /// If you would like to force the use of HTTPS
     /// then call force_https(true) on the returned connector.
     pub fn new(threads: usize) -> Result<Self, Error> {
         let mut http = HttpConnector::new(threads);
         http.enforce_http(false);
+        Self::new_with_connector(http)
+    }
+
+    /// Construct a new HttpsConnector from provided HttpConnector
+    ///
+    /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
+    /// If you wish to use something besides the defaults, use `From::from`.
+    ///
+    /// # Note
+    /// By default this connector will use plain HTTP if the URL provded
+    /// uses the HTTP scheme (eg: http://example.com/).
+    pub fn new_with_connector(http: HttpConnector) -> Result<Self, Error> {
         let tls = TlsConnector::builder()?.build()?;
         Ok(HttpsConnector::from((http, tls)))
     }
@@ -86,7 +97,7 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 
 impl<T> Connect for HttpsConnector<T>
 where
-    T: Connect<Error=io::Error>,
+    T: Connect<Error = io::Error>,
     T::Transport: 'static,
     T::Future: 'static,
 {
@@ -98,10 +109,13 @@ where
         let is_https = dst.scheme() == "https";
         // Early abort if HTTPS is forced but can't be used
         if !is_https && self.force_https {
-            let err = io::Error::new(io::ErrorKind::Other, "HTTPS scheme forced but can't be used");
+            let err = io::Error::new(
+                io::ErrorKind::Other,
+                "HTTPS scheme forced but can't be used",
+            );
             return HttpsConnecting(Box::new(future::err(err)));
         }
-        
+
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
@@ -119,20 +133,16 @@ where
             });
             Box::new(fut)
         } else {
-            Box::new(connecting.map(|(tcp, connected)| {
-                (MaybeHttpsStream::Http(tcp), connected)
-            }))
+            Box::new(connecting.map(|(tcp, connected)| (MaybeHttpsStream::Http(tcp), connected)))
         };
         HttpsConnecting(fut)
     }
-
 }
 
-type BoxedFut<T> = Box<Future<Item=(MaybeHttpsStream<T>, Connected), Error=io::Error> + Send>;
+type BoxedFut<T> = Box<Future<Item = (MaybeHttpsStream<T>, Connected), Error = io::Error> + Send>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
-
 
 impl<T> Future for HttpsConnecting<T> {
     type Item = (MaybeHttpsStream<T>, Connected);
@@ -148,4 +158,3 @@ impl<T> fmt::Debug for HttpsConnecting<T> {
         f.pad("HttpsConnecting")
     }
 }
-
