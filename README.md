@@ -1,6 +1,6 @@
 # hyper-tls
 
-Provides an HTTPS connector for use with hyper.
+Provides an HTTPS connector for use with [hyper](https://hyper.rs).
 
 [Documentation](https://docs.rs/hyper-tls)
 

@@ -1,6 +1,6 @@
 [package]
 name = "hyper-tls"
-version = "0.2.0-a.0"
+version = "0.2.0"
 description = "Default TLS implementation for use with hyper"
 authors = ["Sean McArthur <sean@seanmonstar.com>"]
 license = "MIT/Apache-2.0"
@@ -12,7 +12,7 @@ documentation = "https://docs.rs/hyper-tls"
 [dependencies]
 futures = "0.1.21"
 native-tls = "0.1"
-hyper = { git = "https://github.com/hyperium/hyper" }
+hyper = "0.12"
 tokio-io = "0.1"
 tokio-tls = { version = "0.1.4", default-features = false }
 
