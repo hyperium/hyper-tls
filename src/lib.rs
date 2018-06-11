@@ -35,8 +35,8 @@
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
-#![allow(deprecated)]
 
+extern crate bytes;
 extern crate futures;
 extern crate hyper;
 extern crate native_tls;

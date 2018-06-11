@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io::{self, Read, Write};
 
+use bytes::{Buf, BufMut};
 use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tls::TlsStream;
@@ -51,19 +52,37 @@ impl<T: Read + Write> Write for MaybeHttpsStream<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite> AsyncRead for MaybeHttpsStream<T> {
+    #[inline]
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         match *self {
             MaybeHttpsStream::Http(ref s) => s.prepare_uninitialized_buffer(buf),
             MaybeHttpsStream::Https(ref s) => s.prepare_uninitialized_buffer(buf),
         }
     }
+
+    #[inline]
+    fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.read_buf(buf),
+            MaybeHttpsStream::Https(ref mut s) => s.read_buf(buf),
+        }
+    }
 }
 
 impl<T: AsyncWrite + AsyncRead> AsyncWrite for MaybeHttpsStream<T> {
+    #[inline]
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.shutdown(),
             MaybeHttpsStream::Https(ref mut s) => s.shutdown(),
+        }
+    }
+
+    #[inline]
+    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.write_buf(buf),
+            MaybeHttpsStream::Https(ref mut s) => s.write_buf(buf),
         }
     }
 }

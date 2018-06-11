@@ -10,6 +10,7 @@ repository = "https://github.com/hyperium/hyper-tls"
 documentation = "https://docs.rs/hyper-tls"
 
 [dependencies]
+bytes = "0.4"
 futures = "0.1.21"
 native-tls = "0.1"
 hyper = "0.12"
