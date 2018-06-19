@@ -1,22 +1,19 @@
 use std::fmt;
 use std::io;
-use std::sync::Arc;
 
 use futures::{Future, future, Poll};
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
-use native_tls::TlsConnector;
+use native_tls::{TlsConnector};
 use tokio_tls::TlsConnectorExt;
 
 use stream::MaybeHttpsStream;
 
 /// A Connector for the `https` scheme.
-#[derive(Clone)]
 pub struct HttpsConnector<T> {
     hostname_verification: bool,
     force_https: bool,
     http: T,
-    tls: Arc<TlsConnector>,
 }
 
 impl HttpsConnector<HttpConnector> {
@@ -36,8 +33,7 @@ impl HttpsConnector<HttpConnector> {
     pub fn new(threads: usize) -> Result<Self, Error> {
         let mut http = HttpConnector::new(threads);
         http.enforce_http(false);
-        let tls = TlsConnector::builder()?.build()?;
-        Ok(HttpsConnector::from((http, tls)))
+        Ok(HttpsConnector::from(http))
     }
 }
 
@@ -63,13 +59,12 @@ impl<T> HttpsConnector<T> {
     }
 }
 
-impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
-    fn from(args: (T, TlsConnector)) -> HttpsConnector<T> {
+impl<T> From<T> for HttpsConnector<T> {
+    fn from(arg: T) -> HttpsConnector<T> {
         HttpsConnector {
             hostname_verification: true,
             force_https: false,
-            http: args.0,
-            tls: Arc::new(args.1),
+            http: arg,
         }
     }
 }
@@ -77,7 +72,6 @@ impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
 impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpsConnector")
-            .field("hostname_verification", &self.hostname_verification)
             .field("force_https", &self.force_https)
             .field("http", &self.http)
             .finish()
@@ -101,19 +95,19 @@ where
             let err = io::Error::new(io::ErrorKind::Other, "HTTPS scheme forced but can't be used");
             return HttpsConnecting(Box::new(future::err(err)));
         }
-        
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
-        let tls = self.tls.clone();
-        let verification = self.hostname_verification;
         let fut: BoxedFut<T::Transport> = if is_https {
+
+            let tls = match TlsConnector::builder()
+                .danger_accept_invalid_hostnames(!self.hostname_verification)
+                .build() {
+                Ok(v)  => v,
+                Err(e) => return HttpsConnecting(Box::new(future::err(
+                            io::Error::new(io::ErrorKind::Other, e)))),
+            };
             let fut = connecting.and_then(move |(tcp, connected)| {
-                let handshake = if verification {
-                    tls.connect_async(&host, tcp)
-                } else {
-                    tls.danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication(tcp)
-                };
-                handshake
+                tls.connect_async(&host, tcp)
                     .map(|conn| (MaybeHttpsStream::Https(conn), connected))
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
             });
