@@ -12,10 +12,9 @@ documentation = "https://docs.rs/hyper-tls"
 [dependencies]
 bytes = "0.4"
 futures = "0.1.21"
-native-tls = "0.1"
+native-tls = "0.2"
 hyper = "0.12"
 tokio-io = "0.1"
-tokio-tls = { version = "0.1.4", default-features = false }
 
 [dev-dependencies]
 tokio = "0.1.5"

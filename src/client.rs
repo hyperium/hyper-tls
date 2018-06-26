@@ -1,26 +1,22 @@
 use std::fmt;
 use std::io;
-use std::sync::Arc;
 
-use futures::{Future, future, Poll};
+use futures::{Async, Future, future, Poll};
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
-use native_tls::TlsConnector;
-use tokio_tls::TlsConnectorExt;
+use native_tls::{self, HandshakeError, TlsConnector};
 
-use stream::MaybeHttpsStream;
+use stream::{MaybeHttpsStream, TlsStream};
 
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
 pub struct HttpsConnector<T> {
-    hostname_verification: bool,
     force_https: bool,
     http: T,
-    tls: Arc<TlsConnector>,
+    tls: TlsConnector,
 }
 
 impl HttpsConnector<HttpConnector> {
-
     /// Construct a new HttpsConnector.
     ///
     /// Takes number of DNS worker threads.
@@ -29,35 +25,35 @@ impl HttpsConnector<HttpConnector> {
     /// If you wish to use something besides the defaults, use `From::from`.
     ///
     /// # Note
-    /// By default this connector will use plain HTTP if the URL provded 
-    /// uses the HTTP scheme (eg: http://example.com/).
-    /// If you would like to force the use of HTTPS
-    /// then call force_https(true) on the returned connector.
+    ///
+    /// By default this connector will use plain HTTP if the URL provded uses
+    /// the HTTP scheme (eg: http://example.com/).
+    ///
+    /// If you would like to force the use of HTTPS then call force_https(true)
+    /// on the returned connector.
     pub fn new(threads: usize) -> Result<Self, Error> {
+        TlsConnector::builder()
+            .build()
+            .map(|tls| HttpsConnector::new_(threads, tls))
+    }
+
+    fn new_(threads: usize, tls: TlsConnector) -> Self {
         let mut http = HttpConnector::new(threads);
         http.enforce_http(false);
-        let tls = TlsConnector::builder()?.build()?;
-        Ok(HttpsConnector::from((http, tls)))
-    }
-}
-
-impl<T> HttpsConnector<T> {
-    /// Disable hostname verification when connecting.
-    ///
-    /// # Warning
-    ///
-    /// You should think very carefully before you use this method. If hostname
-    /// verification is not used, any valid certificate for any site will be
-    /// trusted for use from any other. This introduces a significant
-    /// vulnerability to man-in-the-middle attacks.
-    pub fn danger_disable_hostname_verification(&mut self, disable: bool) {
-        self.hostname_verification = !disable;
+        HttpsConnector::from((http, tls))
     }
 }
 
 impl<T> HttpsConnector<T> {
     /// Force the use of HTTPS when connecting.
-    /// If HTTPS cannot be used the connection will be aborted.
+    ///
+    /// If a URL is not `https` when connecting, an error is returned.
+    pub fn https_only(&mut self, enable: bool) {
+        self.force_https = enable;
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "0.3", note = "use `https_only` method instead")]
     pub fn force_https(&mut self, enable: bool) {
         self.force_https = enable;
     }
@@ -66,10 +62,9 @@ impl<T> HttpsConnector<T> {
 impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
     fn from(args: (T, TlsConnector)) -> HttpsConnector<T> {
         HttpsConnector {
-            hostname_verification: true,
             force_https: false,
             http: args.0,
-            tls: Arc::new(args.1),
+            tls: args.1,
         }
     }
 }
@@ -77,7 +72,6 @@ impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
 impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpsConnector")
-            .field("hostname_verification", &self.hostname_verification)
             .field("force_https", &self.force_https)
             .field("http", &self.http)
             .finish()
@@ -101,20 +95,17 @@ where
             let err = io::Error::new(io::ErrorKind::Other, "HTTPS scheme forced but can't be used");
             return HttpsConnecting(Box::new(future::err(err)));
         }
-        
+
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
-        let verification = self.hostname_verification;
         let fut: BoxedFut<T::Transport> = if is_https {
             let fut = connecting.and_then(move |(tcp, connected)| {
-                let handshake = if verification {
-                    tls.connect_async(&host, tcp)
-                } else {
-                    tls.danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication(tcp)
+                let handshake = Handshaking {
+                    inner: Some(tls.connect(&host, tcp)),
                 };
                 handshake
-                    .map(|conn| (MaybeHttpsStream::Https(conn), connected))
+                    .map(|conn| (MaybeHttpsStream::Https(TlsStream::new(conn)), connected))
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
             });
             Box::new(fut)
@@ -149,3 +140,28 @@ impl<T> fmt::Debug for HttpsConnecting<T> {
     }
 }
 
+struct Handshaking<T> {
+    inner: Option<Result<native_tls::TlsStream<T>, HandshakeError<T>>>,
+}
+
+impl<T: io::Read + io::Write> Future for Handshaking<T> {
+    type Item = native_tls::TlsStream<T>;
+    type Error = native_tls::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.inner.take().expect("polled after ready") {
+            Ok(stream) => Ok(stream.into()),
+            Err(HandshakeError::WouldBlock(mid)) => {
+                match mid.handshake() {
+                    Ok(stream) => Ok(stream.into()),
+                    Err(HandshakeError::Failure(err)) => Err(err),
+                    Err(HandshakeError::WouldBlock(mid)) => {
+                        self.inner = Some(Err(HandshakeError::WouldBlock(mid)));
+                        Ok(Async::NotReady)
+                    }
+                }
+            },
+            Err(HandshakeError::Failure(err)) => Err(err),
+        }
+    }
+}

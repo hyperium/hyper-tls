@@ -40,11 +40,11 @@ extern crate bytes;
 extern crate futures;
 extern crate hyper;
 extern crate native_tls;
+#[macro_use]
 extern crate tokio_io;
-extern crate tokio_tls;
 
 pub use client::{HttpsConnector, HttpsConnecting, Error};
-pub use stream::MaybeHttpsStream;
+pub use stream::{MaybeHttpsStream, TlsStream};
 
 mod client;
 mod stream;

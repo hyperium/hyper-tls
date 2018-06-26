@@ -3,8 +3,8 @@ use std::io::{self, Read, Write};
 
 use bytes::{Buf, BufMut};
 use futures::Poll;
+use native_tls;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_tls::TlsStream;
 
 /// A stream that might be protected with TLS.
 pub enum MaybeHttpsStream<T> {
@@ -14,11 +14,26 @@ pub enum MaybeHttpsStream<T> {
     Https(TlsStream<T>),
 }
 
-impl<T> fmt::Debug for MaybeHttpsStream<T> {
+/// A stream protected with TLS.
+pub struct TlsStream<T> {
+    inner: native_tls::TlsStream<T>,
+}
+
+// ===== impl MaybeHttpsStream =====
+
+impl<T: fmt::Debug> fmt::Debug for MaybeHttpsStream<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MaybeHttpsStream::Http(..) => f.pad("Http(..)"),
-            MaybeHttpsStream::Https(..) => f.pad("Https(..)"),
+            MaybeHttpsStream::Http(ref s) => {
+                f.debug_tuple("Http")
+                    .field(s)
+                    .finish()
+            },
+            MaybeHttpsStream::Https(ref s) => {
+                f.debug_tuple("Https")
+                    .field(s)
+                    .finish()
+            },
         }
     }
 }
@@ -84,5 +99,49 @@ impl<T: AsyncWrite + AsyncRead> AsyncWrite for MaybeHttpsStream<T> {
             MaybeHttpsStream::Http(ref mut s) => s.write_buf(buf),
             MaybeHttpsStream::Https(ref mut s) => s.write_buf(buf),
         }
+    }
+}
+
+// ===== impl TlsStream =====
+
+impl<T> TlsStream<T> {
+    pub(crate) fn new(inner: native_tls::TlsStream<T>) -> Self {
+        TlsStream {
+            inner,
+        }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for TlsStream<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.inner, f)
+    }
+}
+
+impl<T: Read + Write> Read for TlsStream<T> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl<T: Read + Write> Write for TlsStream<T> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.inner.write(buf)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite> AsyncRead for TlsStream<T> {}
+
+impl<T: AsyncWrite + AsyncRead> AsyncWrite for TlsStream<T> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        try_nb!(self.inner.shutdown());
+        self.inner.get_mut().shutdown()
     }
 }
