@@ -43,6 +43,7 @@ extern crate hyper;
 extern crate native_tls;
 #[macro_use]
 extern crate tokio_io;
+extern crate tokio_reactor;
 
 pub use client::{HttpsConnector, HttpsConnecting, Error};
 pub use stream::{MaybeHttpsStream, TlsStream};

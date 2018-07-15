@@ -5,6 +5,7 @@ use futures::{Async, Future, future, Poll};
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
 use native_tls::{self, HandshakeError, TlsConnector};
+use tokio_reactor::Handle;
 
 use stream::{MaybeHttpsStream, TlsStream};
 
@@ -34,11 +35,17 @@ impl HttpsConnector<HttpConnector> {
     pub fn new(threads: usize) -> Result<Self, Error> {
         TlsConnector::builder()
             .build()
-            .map(|tls| HttpsConnector::new_(threads, tls))
+            .map(|tls| HttpsConnector::new_(HttpConnector::new(threads), tls))
     }
 
-    fn new_(threads: usize, tls: TlsConnector) -> Self {
-        let mut http = HttpConnector::new(threads);
+    /// Construct a new `HttpsConnector` with a specific Tokio handle.
+    pub fn new_with_handle(threads: usize, handle: Handle) -> Result<Self, Error> {
+        TlsConnector::builder()
+            .build()
+            .map(|tls| HttpsConnector::new_(HttpConnector::new_with_handle(threads, handle), tls))
+    }
+
+    fn new_(mut http: HttpConnector, tls: TlsConnector) -> Self {
         http.enforce_http(false);
         HttpsConnector::from((http, tls))
     }
