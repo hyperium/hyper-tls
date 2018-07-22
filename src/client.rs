@@ -29,7 +29,7 @@ impl HttpsConnector<HttpConnector> {
     /// By default this connector will use plain HTTP if the URL provded uses
     /// the HTTP scheme (eg: http://example.com/).
     ///
-    /// If you would like to force the use of HTTPS then call force_https(true)
+    /// If you would like to force the use of HTTPS then call https_only(true)
     /// on the returned connector.
     pub fn new(threads: usize) -> Result<Self, Error> {
         TlsConnector::builder()
