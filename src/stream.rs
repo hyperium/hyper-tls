@@ -38,6 +38,24 @@ impl<T: fmt::Debug> fmt::Debug for MaybeHttpsStream<T> {
     }
 }
 
+impl<T> From<native_tls::TlsStream<T>> for MaybeHttpsStream<T> {
+    fn from(inner: native_tls::TlsStream<T>) -> Self {
+        MaybeHttpsStream::Https(TlsStream::from(inner))
+    }
+}
+
+impl<T> From<T> for MaybeHttpsStream<T> {
+    fn from(inner: T) -> Self {
+        MaybeHttpsStream::Http(inner)
+    }
+}
+
+impl<T> From<TlsStream<T>> for MaybeHttpsStream<T> {
+    fn from(inner: TlsStream<T>) -> Self {
+        MaybeHttpsStream::Https(inner)
+    }
+}
+
 impl<T: Read + Write> Read for MaybeHttpsStream<T> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -115,6 +133,12 @@ impl<T> TlsStream<T> {
 impl<T: fmt::Debug> fmt::Debug for TlsStream<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.inner, f)
+    }
+}
+
+impl<T> From<native_tls::TlsStream<T>> for TlsStream<T> {
+    fn from(stream: native_tls::TlsStream<T>) -> Self {
+        TlsStream { inner: stream }
     }
 }
 
