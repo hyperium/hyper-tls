@@ -15,6 +15,7 @@ futures = "0.1.21"
 native-tls = "0.2"
 hyper = "0.12"
 tokio-io = "0.1"
+tokio-reactor = "0.1"
 
 [dev-dependencies]
 tokio = "0.1.5"
