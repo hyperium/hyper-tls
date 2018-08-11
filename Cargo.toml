@@ -9,6 +9,9 @@ homepage = "https://hyper.rs"
 repository = "https://github.com/hyperium/hyper-tls"
 documentation = "https://docs.rs/hyper-tls"
 
+[features]
+vendored = ["native-tls/vendored"]
+
 [dependencies]
 bytes = "0.4"
 futures = "0.1.21"
