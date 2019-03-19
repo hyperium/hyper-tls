@@ -128,6 +128,19 @@ impl<T> TlsStream<T> {
             inner,
         }
     }
+
+    /// Get access to the internal `native_tls::TlsStream` stream which also
+    /// transitively allows access to `T`.
+    pub fn get_ref(&self) -> &native_tls::TlsStream<T> {
+        &self.inner
+    }
+
+
+    /// Get mutable access to the internal `native_tls::TlsStream` stream which
+    /// also transitively allows mutable access to `T`.
+    pub fn get_mut(&mut self) -> &mut native_tls::TlsStream<T> {
+        &mut self.inner
+    }
 }
 
 impl<T: fmt::Debug> fmt::Debug for TlsStream<T> {
