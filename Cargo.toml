@@ -8,16 +8,17 @@ keywords = ["hyper", "tls", "http", "https", "ssl"]
 homepage = "https://hyper.rs"
 repository = "https://github.com/hyperium/hyper-tls"
 documentation = "https://docs.rs/hyper-tls"
+edition = "2018"
 
 [features]
 vendored = ["native-tls/vendored"]
 
 [dependencies]
-bytes = "0.4"
-futures = "0.1.21"
+futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nightly"] }
 native-tls = "0.2"
-hyper = "0.12"
-tokio-io = "0.1"
+hyper = { git = "https://github.com/hyperium/hyper" }
+tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+scoped-tls = "1.0"
 
 [dev-dependencies]
-tokio = "0.1.5"
+tokio = { git = "https://github.com/tokio-rs/tokio" }

@@ -1,12 +1,15 @@
 use std::fmt;
+use std::future::Future;
 use std::io;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use futures::{Async, Future, future, Poll};
+use futures::{future, TryFutureExt};
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
-use native_tls::{self, HandshakeError, TlsConnector};
+use native_tls::{self, TlsConnector};
 
-use stream::{MaybeHttpsStream, TlsStream};
+use crate::stream::{Handshaking, MaybeHttpsStream, SyncStream, TlsStream};
 
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
@@ -80,7 +83,7 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 
 impl<T> Connect for HttpsConnector<T>
 where
-    T: Connect<Error=io::Error>,
+    T: Connect<Error = io::Error>,
     T::Transport: 'static,
     T::Future: 'static,
 {
@@ -92,76 +95,54 @@ where
         let is_https = dst.scheme() == "https";
         // Early abort if HTTPS is forced but can't be used
         if !is_https && self.force_https {
-            let err = io::Error::new(io::ErrorKind::Other, "HTTPS scheme forced but can't be used");
+            let err = io::Error::new(
+                io::ErrorKind::Other,
+                "HTTPS scheme forced but can't be used",
+            );
             return HttpsConnecting(Box::new(future::err(err)));
         }
 
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
-        let fut: BoxedFut<T::Transport> = if is_https {
-            let fut = connecting.and_then(move |(tcp, connected)| {
-                let handshake = Handshaking {
-                    inner: Some(tls.connect(&host, tcp)),
-                };
-                handshake
-                    .map(|conn| (MaybeHttpsStream::Https(TlsStream::new(conn)), connected))
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-            });
-            Box::new(fut)
-        } else {
-            Box::new(connecting.map(|(tcp, connected)| {
-                (MaybeHttpsStream::Http(tcp), connected)
-            }))
-        };
+        let fut: BoxedFut<T::Transport> =
+            if is_https {
+                let fut = connecting.and_then(move |(tcp, connected)| {
+                    let handshake = Handshaking {
+                        inner: Some(tls.connect(&host, SyncStream { inner: tcp })),
+                    };
+                    handshake
+                        .and_then(|conn| {
+                            future::ok((MaybeHttpsStream::Https(TlsStream::new(conn)), connected))
+                        })
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                });
+                Box::new(fut)
+            } else {
+                Box::new(connecting.and_then(|(tcp, connected)| {
+                    future::ok((MaybeHttpsStream::Http(tcp), connected))
+                }))
+            };
         HttpsConnecting(fut)
     }
-
 }
 
-type BoxedFut<T> = Box<Future<Item=(MaybeHttpsStream<T>, Connected), Error=io::Error> + Send>;
+type BoxedFut<T> =
+    Box<dyn Future<Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>> + Send + Unpin>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
 
-
 impl<T> Future for HttpsConnecting<T> {
-    type Item = (MaybeHttpsStream<T>, Connected);
-    type Error = io::Error;
+    type Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
     }
 }
 
 impl<T> fmt::Debug for HttpsConnecting<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.pad("HttpsConnecting")
-    }
-}
-
-struct Handshaking<T> {
-    inner: Option<Result<native_tls::TlsStream<T>, HandshakeError<T>>>,
-}
-
-impl<T: io::Read + io::Write> Future for Handshaking<T> {
-    type Item = native_tls::TlsStream<T>;
-    type Error = native_tls::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.inner.take().expect("polled after ready") {
-            Ok(stream) => Ok(stream.into()),
-            Err(HandshakeError::WouldBlock(mid)) => {
-                match mid.handshake() {
-                    Ok(stream) => Ok(stream.into()),
-                    Err(HandshakeError::Failure(err)) => Err(err),
-                    Err(HandshakeError::WouldBlock(mid)) => {
-                        self.inner = Some(Err(HandshakeError::WouldBlock(mid)));
-                        Ok(Async::NotReady)
-                    }
-                }
-            },
-            Err(HandshakeError::Failure(err)) => Err(err),
-        }
     }
 }
