@@ -74,9 +74,9 @@ pub struct TlsStream<T> {
 
 impl<T: fmt::Debug> fmt::Debug for MaybeHttpsStream<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MaybeHttpsStream::Http(ref s) => f.debug_tuple("Http").field(s).finish(),
-            MaybeHttpsStream::Https(ref s) => f.debug_tuple("Https").field(s).finish(),
+        match self {
+            MaybeHttpsStream::Http(s) => f.debug_tuple("Http").field(s).finish(),
+            MaybeHttpsStream::Https(s) => f.debug_tuple("Https").field(s).finish(),
         }
     }
 }
@@ -102,9 +102,9 @@ impl<T> From<TlsStream<T>> for MaybeHttpsStream<T> {
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeHttpsStream<T> {
     #[inline]
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        match *self {
-            MaybeHttpsStream::Http(ref s) => s.prepare_uninitialized_buffer(buf),
-            MaybeHttpsStream::Https(ref s) => s.prepare_uninitialized_buffer(buf),
+        match self {
+            MaybeHttpsStream::Http(s) => s.prepare_uninitialized_buffer(buf),
+            MaybeHttpsStream::Https(s) => s.prepare_uninitialized_buffer(buf),
         }
     }
 
@@ -115,8 +115,8 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeHttpsStream<T> {
         buf: &mut [u8],
     ) -> Poll<Result<usize, io::Error>> {
         match Pin::get_mut(self) {
-            MaybeHttpsStream::Http(ref mut s) => Pin::new(s).poll_read(cx, buf),
-            MaybeHttpsStream::Https(ref mut s) => Pin::new(s).poll_read(cx, buf),
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_read(cx, buf),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_read(cx, buf),
         }
     }
 }
@@ -129,8 +129,8 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         match Pin::get_mut(self) {
-            MaybeHttpsStream::Http(ref mut s) => Pin::new(s).poll_write(cx, buf),
-            MaybeHttpsStream::Https(ref mut s) => Pin::new(s).poll_write(cx, buf),
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_write(cx, buf),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
 
@@ -141,8 +141,8 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
     #[inline]
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         match Pin::get_mut(self) {
-            MaybeHttpsStream::Http(ref mut s) => Pin::new(s).poll_shutdown(cx),
-            MaybeHttpsStream::Https(ref mut s) => Pin::new(s).poll_shutdown(cx),
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_shutdown(cx),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_shutdown(cx),
         }
     }
 }
@@ -215,7 +215,7 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for TlsStream<T> {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        WAKER.set(cx.waker(), || match Pin::get_mut(self).inner.flush() {
+        WAKER.set(cx.waker(), || match Pin::get_mut(self).inner.shutdown() {
             Ok(()) => Poll::Ready(Ok(())),
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
             Err(e) => Poll::Ready(Err(e)),
