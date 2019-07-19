@@ -18,6 +18,7 @@ futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nig
 native-tls = "0.2"
 hyper = { git = "https://github.com/hyperium/hyper" }
 tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio-tls = { git = "https://github.com/tokio-rs/tokio" }
 scoped-tls = "1.0"
 
 [dev-dependencies]

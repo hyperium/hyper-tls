@@ -4,12 +4,13 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::{future, TryFutureExt};
+use futures::future;
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
-use native_tls::{self, TlsConnector};
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_tls::TlsConnector;
 
-use crate::stream::{Handshaking, MaybeHttpsStream, SyncStream, TlsStream};
+use crate::stream::MaybeHttpsStream;
 
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
@@ -35,9 +36,8 @@ impl HttpsConnector<HttpConnector> {
     /// If you would like to force the use of HTTPS then call https_only(true)
     /// on the returned connector.
     pub fn new(threads: usize) -> Result<Self, Error> {
-        TlsConnector::builder()
-            .build()
-            .map(|tls| HttpsConnector::new_(threads, tls))
+        native_tls::TlsConnector::new()
+            .map(|tls| HttpsConnector::new_(threads, tls.into()))
     }
 
     fn new_(threads: usize, tls: TlsConnector) -> Self {
@@ -84,8 +84,7 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 impl<T> Connect for HttpsConnector<T>
 where
     T: Connect<Error = io::Error>,
-    T::Transport: 'static,
-    T::Future: 'static,
+    T::Future: Unpin + 'static
 {
     type Transport = MaybeHttpsStream<T::Transport>;
     type Error = io::Error;
@@ -105,35 +104,30 @@ where
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
-        let fut: BoxedFut<T::Transport> =
-            if is_https {
-                let fut = connecting.and_then(move |(tcp, connected)| {
-                    let handshake = Handshaking {
-                        inner: Some(tls.connect(&host, SyncStream { inner: tcp })),
-                    };
-                    handshake
-                        .and_then(|conn| {
-                            future::ok((MaybeHttpsStream::Https(TlsStream::new(conn)), connected))
-                        })
-                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                });
-                Box::new(fut)
+        let fut = Box::new((async move || -> Result<_, io::Error> {
+            let (tcp, connected) = connecting.await?;
+            let maybe = if is_https {
+                let tls = tls
+                    .connect(&host, tcp)
+                    .await
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                MaybeHttpsStream::Https(tls)
             } else {
-                Box::new(connecting.and_then(|(tcp, connected)| {
-                    future::ok((MaybeHttpsStream::Http(tcp), connected))
-                }))
+                MaybeHttpsStream::Http(tcp)
             };
+            Ok((maybe, connected))
+        })());
         HttpsConnecting(fut)
     }
 }
 
 type BoxedFut<T> =
-    Box<dyn Future<Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>> + Send + Unpin>;
+    Box<dyn Future<Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>> + Send>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
 
-impl<T> Future for HttpsConnecting<T> {
+impl<T: AsyncRead + AsyncWrite + Unpin> Future for HttpsConnecting<T> {
     type Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
