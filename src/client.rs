@@ -36,8 +36,7 @@ impl HttpsConnector<HttpConnector> {
     /// If you would like to force the use of HTTPS then call https_only(true)
     /// on the returned connector.
     pub fn new(threads: usize) -> Result<Self, Error> {
-        native_tls::TlsConnector::new()
-            .map(|tls| HttpsConnector::new_(threads, tls.into()))
+        native_tls::TlsConnector::new().map(|tls| HttpsConnector::new_(threads, tls.into()))
     }
 
     fn new_(threads: usize, tls: TlsConnector) -> Self {
@@ -84,7 +83,7 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 impl<T> Connect for HttpsConnector<T>
 where
     T: Connect<Error = io::Error>,
-    T::Future: Unpin + 'static
+    T::Future: 'static,
 {
     type Transport = MaybeHttpsStream<T::Transport>;
     type Error = io::Error;
@@ -98,14 +97,17 @@ where
                 io::ErrorKind::Other,
                 "HTTPS scheme forced but can't be used",
             );
-            return HttpsConnecting(Box::new(future::err(err)));
+            return HttpsConnecting(Box::pin(future::err(err)));
         }
 
         let host = dst.host().to_owned();
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
-        let fut = Box::new((async move || -> Result<_, io::Error> {
-            let (tcp, connected) = connecting.await?;
+        let fut = async move {
+            let (tcp, connected) = match connecting.await {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             let maybe = if is_https {
                 let tls = tls
                     .connect(&host, tcp)
@@ -116,13 +118,13 @@ where
                 MaybeHttpsStream::Http(tcp)
             };
             Ok((maybe, connected))
-        })());
-        HttpsConnecting(fut)
+        };
+        HttpsConnecting(Box::pin(fut))
     }
 }
 
 type BoxedFut<T> =
-    Box<dyn Future<Output = Result<(MaybeHttpsStream<T>, Connected), io::Error>> + Send>;
+    Pin<Box<dyn Future<Output = io::Result<(MaybeHttpsStream<T>, Connected)>> + Send>>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);

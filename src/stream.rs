@@ -3,8 +3,8 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-pub use tokio_tls::TlsStream;
 use tokio_io::{AsyncRead, AsyncWrite};
+pub use tokio_tls::TlsStream;
 
 /// A stream that might be protected with TLS.
 pub enum MaybeHttpsStream<T> {
@@ -72,8 +72,12 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
         }
     }
 
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
+    #[inline]
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+        match Pin::get_mut(self) {
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_flush(cx),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_flush(cx),
+        }
     }
 
     #[inline]

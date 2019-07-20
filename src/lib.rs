@@ -28,9 +28,7 @@
 #![cfg_attr(test, deny(warnings))]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
-
 #![feature(async_await)]
-#![feature(async_closure)]
 
 pub use client::{Error, HttpsConnecting, HttpsConnector};
 pub use stream::{MaybeHttpsStream, TlsStream};
