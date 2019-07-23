@@ -4,7 +4,6 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::future;
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -97,7 +96,7 @@ where
                 io::ErrorKind::Other,
                 "HTTPS scheme forced but can't be used",
             );
-            return HttpsConnecting(Box::pin(future::err(err)));
+            return HttpsConnecting(Box::pin(async { Err(err) }));
         }
 
         let host = dst.host().to_owned();

@@ -9,7 +9,6 @@
 //! ```no_run
 //! #![feature(async_await)]
 //!
-//! use futures::{future, Future, FutureExt, TryFutureExt};
 //! use hyper_tls::HttpsConnector;
 //! use hyper::Client;
 //!

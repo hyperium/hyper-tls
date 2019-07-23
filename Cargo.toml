@@ -14,7 +14,6 @@ edition = "2018"
 vendored = ["native-tls/vendored"]
 
 [dependencies]
-futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nightly"] }
 native-tls = "0.2"
 hyper = { git = "https://github.com/hyperium/hyper" }
 tokio-io = { git = "https://github.com/tokio-rs/tokio" }

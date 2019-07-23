@@ -15,7 +15,7 @@ async fn main() -> Result<(), hyper::Error> {
     let mut body = res.into_body();
     while let Some(chunk) = body.next().await {
         let chunk = chunk?;
-        ::std::io::stdout()
+        std::io::stdout()
             .write_all(&chunk)
             .expect("example expects stdout to work");
     }
