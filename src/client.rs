@@ -103,10 +103,7 @@ where
         let connecting = self.http.connect(dst);
         let tls = self.tls.clone();
         let fut = async move {
-            let (tcp, connected) = match connecting.await {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let (tcp, connected) = connecting.await?;
             let maybe = if is_https {
                 let tls = tls
                     .connect(&host, tcp)
