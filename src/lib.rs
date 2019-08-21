@@ -7,8 +7,6 @@
 //! ## Example
 //!
 //! ```no_run
-//! #![feature(async_await)]
-//!
 //! use hyper_tls::HttpsConnector;
 //! use hyper::Client;
 //!
@@ -27,7 +25,6 @@
 #![cfg_attr(test, deny(warnings))]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
-#![feature(async_await)]
 
 pub use client::{Error, HttpsConnecting, HttpsConnector};
 pub use stream::{MaybeHttpsStream, TlsStream};
