@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 use std::io::Write;
 
 #[tokio::main]
