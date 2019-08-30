@@ -2,7 +2,7 @@ use std::io::Write;
 
 #[tokio::main]
 async fn main() -> Result<(), hyper::Error> {
-    let https = hyper_tls::HttpsConnector::new(4).unwrap();
+    let https = hyper_tls::HttpsConnector::new().unwrap();
     let client = hyper::Client::builder().build::<_, hyper::Body>(https);
 
     let res = client.get("https://hyper.rs".parse().unwrap()).await?;
