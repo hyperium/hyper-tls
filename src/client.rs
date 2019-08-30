@@ -34,12 +34,12 @@ impl HttpsConnector<HttpConnector> {
     ///
     /// If you would like to force the use of HTTPS then call https_only(true)
     /// on the returned connector.
-    pub fn new(threads: usize) -> Result<Self, Error> {
-        native_tls::TlsConnector::new().map(|tls| HttpsConnector::new_(threads, tls.into()))
+    pub fn new() -> Result<Self, Error> {
+        native_tls::TlsConnector::new().map(|tls| HttpsConnector::new_(tls.into()))
     }
 
-    fn new_(threads: usize, tls: TlsConnector) -> Self {
-        let mut http = HttpConnector::new(threads);
+    fn new_(tls: TlsConnector) -> Self {
+        let mut http = HttpConnector::new();
         http.enforce_http(false);
         HttpsConnector::from((http, tls))
     }
@@ -81,7 +81,7 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 
 impl<T> Connect for HttpsConnector<T>
 where
-    T: Connect<Error = io::Error>,
+    T: Connect<Error = io::Error> + Send + Sync,
     T::Future: 'static,
 {
     type Transport = MaybeHttpsStream<T::Transport>;

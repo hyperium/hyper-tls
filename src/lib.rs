@@ -13,7 +13,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), hyper::Error>{
 //!     // 4 is number of blocking DNS threads
-//!     let https = HttpsConnector::new(4).unwrap();
+//!     let https = HttpsConnector::new().unwrap();
 //!     let client = Client::builder().build::<_, hyper::Body>(https);
 //!
 //!     let res = client.get("https://hyper.rs".parse().unwrap()).await?;
