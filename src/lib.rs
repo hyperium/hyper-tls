@@ -21,7 +21,7 @@
 //!     Ok(())
 //! }
 //! ```
-#![doc(html_root_url = "https://docs.rs/hyper-tls/0.4.0-alpha.3")]
+#![doc(html_root_url = "https://docs.rs/hyper-tls/0.4.0-alpha.4")]
 #![cfg_attr(test, deny(warnings))]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
