@@ -15,9 +15,9 @@ vendored = ["native-tls/vendored"]
 
 [dependencies]
 native-tls = "0.2"
-hyper = "=0.13.0-alpha.2"
-tokio-io = "=0.2.0-alpha.5"
-tokio-tls = "=0.3.0-alpha.5"
+hyper = "=0.13.0-alpha.3"
+tokio-io = "=0.2.0-alpha.6"
+tokio-tls = "=0.3.0-alpha.6"
 
 [dev-dependencies]
-tokio = "=0.2.0-alpha.5"
+tokio = "=0.2.0-alpha.6"
