@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 
 use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
 pub use native_tls::Error;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tls::TlsConnector;
 
 use crate::stream::MaybeHttpsStream;

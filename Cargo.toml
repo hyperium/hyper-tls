@@ -16,8 +16,5 @@ vendored = ["native-tls/vendored"]
 [dependencies]
 native-tls = "0.2"
 hyper = { version = "=0.13.0-alpha.4", default-features = false, features = ["tcp"] }
-tokio-io = "=0.2.0-alpha.6"
-tokio-tls = "=0.3.0-alpha.6"
-
-[dev-dependencies]
-tokio = "=0.2.0-alpha.6"
+tokio = "0.2"
+tokio-tls = "0.3.0"
