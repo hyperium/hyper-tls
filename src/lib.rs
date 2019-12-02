@@ -12,7 +12,6 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), hyper::Error>{
-//!     // 4 is number of blocking DNS threads
 //!     let https = HttpsConnector::new().unwrap();
 //!     let client = Client::builder().build::<_, hyper::Body>(https);
 //!
