@@ -22,8 +22,6 @@ pub struct HttpsConnector<T> {
 impl HttpsConnector<HttpConnector> {
     /// Construct a new HttpsConnector.
     ///
-    /// Takes number of DNS worker threads.
-    ///
     /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
     /// If you wish to use something besides the defaults, use `From::from`.
     ///
