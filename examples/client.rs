@@ -1,21 +1,23 @@
-use std::io::Write;
+
+use hyper::{Client, body::HttpBody as _};
+use hyper_tls::HttpsConnector;
+use tokio::io::{self, AsyncWriteExt as _};
 
 #[tokio::main]
-async fn main() -> Result<(), hyper::Error> {
-    let https = hyper_tls::HttpsConnector::new().unwrap();
-    let client = hyper::Client::builder().build::<_, hyper::Body>(https);
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let https = HttpsConnector::new()?;
+    let client = Client::builder().build::<_, hyper::Body>(https);
 
-    let res = client.get("https://hyper.rs".parse().unwrap()).await?;
+    let mut res = client.get("https://hyper.rs".parse().unwrap()).await?;
 
     println!("Status: {}", res.status());
     println!("Headers:\n{:#?}", res.headers());
 
-    let mut body = res.into_body();
-    while let Some(chunk) = body.next().await {
+    while let Some(chunk) = res.body_mut().data().await {
         let chunk = chunk?;
-        std::io::stdout()
+        io::stdout()
             .write_all(&chunk)
-            .expect("example expects stdout to work");
+            .await?
     }
     Ok(())
 }

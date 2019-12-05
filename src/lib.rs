@@ -25,7 +25,10 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 
-pub use client::{Error, HttpsConnecting, HttpsConnector};
+#[doc(hidden)]
+pub extern crate native_tls;
+
+pub use client::{HttpsConnecting, HttpsConnector};
 pub use stream::{MaybeHttpsStream, TlsStream};
 
 mod client;
