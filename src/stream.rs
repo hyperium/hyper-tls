@@ -3,7 +3,8 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tokio_io::{AsyncRead, AsyncWrite};
+use hyper::client::connect::{Connected, Connection};
+use tokio::io::{AsyncRead, AsyncWrite};
 pub use tokio_tls::TlsStream;
 
 /// A stream that might be protected with TLS.
@@ -39,7 +40,7 @@ impl<T> From<TlsStream<T>> for MaybeHttpsStream<T> {
 
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeHttpsStream<T> {
     #[inline]
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
         match self {
             MaybeHttpsStream::Http(s) => s.prepare_uninitialized_buffer(buf),
             MaybeHttpsStream::Https(s) => s.prepare_uninitialized_buffer(buf),
@@ -85,6 +86,15 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
         match Pin::get_mut(self) {
             MaybeHttpsStream::Http(s) => Pin::new(s).poll_shutdown(cx),
             MaybeHttpsStream::Https(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + Connection + Unpin> Connection for MaybeHttpsStream<T> {
+    fn connected(&self) -> Connected {
+        match self {
+            MaybeHttpsStream::Http(s) => s.connected(),
+            MaybeHttpsStream::Https(s) => s.get_ref().connected(),
         }
     }
 }
