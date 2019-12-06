@@ -32,8 +32,17 @@ impl HttpsConnector<HttpConnector> {
     ///
     /// If you would like to force the use of HTTPS then call https_only(true)
     /// on the returned connector.
-    pub fn new() -> Result<Self, native_tls::Error> {
-        native_tls::TlsConnector::new().map(|tls| HttpsConnector::new_(tls.into()))
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the underlying TLS context could not be created.
+    ///
+    /// To handle that error yourself, you can use the `HttpsConnector::from`
+    /// constructor after trying to make a `TlsConnector`.
+    pub fn new() -> Self {
+        native_tls::TlsConnector::new()
+            .map(|tls| HttpsConnector::new_(tls.into()))
+            .unwrap_or_else(|e| panic!("HttpsConnector::new() failure: {}", e))
     }
 
     fn new_(tls: TlsConnector) -> Self {
