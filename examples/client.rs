@@ -5,10 +5,10 @@ use tokio::io::{self, AsyncWriteExt as _};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let https = HttpsConnector::new()?;
+    let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
-    let mut res = client.get("https://hyper.rs".parse().unwrap()).await?;
+    let mut res = client.get("https://hyper.rs".parse()?).await?;
 
     println!("Status: {}", res.status());
     println!("Headers:\n{:#?}", res.headers());
