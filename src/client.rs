@@ -7,7 +7,7 @@ use hyper::{client::connect::HttpConnector, service::Service, Uri};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tls::TlsConnector;
 
-use crate::error::ConnectorError;
+use crate::error::HttpsConnectorError;
 use crate::stream::MaybeHttpsStream;
 
 /// A Connector for the `https` scheme.
@@ -87,13 +87,13 @@ where
     T::Error: Send + Sync + 'static,
 {
     type Response = MaybeHttpsStream<T::Response>;
-    type Error = ConnectorError<T::Error>;
+    type Error = HttpsConnectorError<T::Error>;
     type Future = HttpsConnecting<T::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match self.http.poll_ready(cx) {
             Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(ConnectorError::HttpConnector(e))),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(HttpsConnectorError::HttpConnector(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -102,19 +102,21 @@ where
         let is_https = dst.scheme_str() == Some("https");
         // Early abort if HTTPS is forced but can't be used
         if !is_https && self.force_https {
-            return err(ConnectorError::ForceHttpsButUriNotHttps);
+            return err(HttpsConnectorError::ForceHttpsButUriNotHttps);
         }
 
         let host = dst.host().unwrap_or("").to_owned();
         let connecting = self.http.call(dst);
         let tls = self.tls.clone();
         let fut = async move {
-            let tcp = connecting.await.map_err(ConnectorError::HttpConnector)?;
+            let tcp = connecting
+                .await
+                .map_err(HttpsConnectorError::HttpConnector)?;
             let maybe = if is_https {
                 let tls = tls
                     .connect(&host, tcp)
                     .await
-                    .map_err(|e| ConnectorError::NativeTls(e))?;
+                    .map_err(|e| HttpsConnectorError::NativeTls(e))?;
                 MaybeHttpsStream::Https(tls)
             } else {
                 MaybeHttpsStream::Http(tcp)
