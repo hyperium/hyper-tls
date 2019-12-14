@@ -30,6 +30,8 @@ pub extern crate native_tls;
 
 pub use client::{HttpsConnecting, HttpsConnector};
 pub use stream::{MaybeHttpsStream, TlsStream};
+pub use error::ConnectorError;
 
 mod client;
 mod stream;
+mod error;

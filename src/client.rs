@@ -7,9 +7,8 @@ use hyper::{client::connect::HttpConnector, service::Service, Uri};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tls::TlsConnector;
 
+use crate::error::ConnectorError;
 use crate::stream::MaybeHttpsStream;
-
-type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 /// A Connector for the `https` scheme.
 #[derive(Clone)]
@@ -85,16 +84,16 @@ where
     T: Service<Uri>,
     T::Response: AsyncRead + AsyncWrite + Send + Unpin,
     T::Future: Send + 'static,
-    T::Error: Into<BoxError>,
+    T::Error: Send + Sync + 'static,
 {
     type Response = MaybeHttpsStream<T::Response>;
-    type Error = BoxError;
-    type Future = HttpsConnecting<T::Response>;
+    type Error = ConnectorError<T::Error>;
+    type Future = HttpsConnecting<T::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match self.http.poll_ready(cx) {
             Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(ConnectorError::HttpConnector(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -103,20 +102,19 @@ where
         let is_https = dst.scheme_str() == Some("https");
         // Early abort if HTTPS is forced but can't be used
         if !is_https && self.force_https {
-            return err(ForceHttpsButUriNotHttps.into());
+            return err(ConnectorError::ForceHttpsButUriNotHttps);
         }
 
-        let host = dst.host()
-            .unwrap_or("")
-            .to_owned();
+        let host = dst.host().unwrap_or("").to_owned();
         let connecting = self.http.call(dst);
         let tls = self.tls.clone();
         let fut = async move {
-            let tcp = connecting.await.map_err(Into::into)?;
+            let tcp = connecting.await.map_err(ConnectorError::HttpConnector)?;
             let maybe = if is_https {
                 let tls = tls
                     .connect(&host, tcp)
-                    .await?;
+                    .await
+                    .map_err(|e| ConnectorError::NativeTls(e))?;
                 MaybeHttpsStream::Https(tls)
             } else {
                 MaybeHttpsStream::Http(tcp)
@@ -127,39 +125,25 @@ where
     }
 }
 
-fn err<T>(e: BoxError) -> HttpsConnecting<T> {
+fn err<T, E: Send + 'static>(e: E) -> HttpsConnecting<T, E> {
     HttpsConnecting(Box::pin(async { Err(e) }))
 }
 
-type BoxedFut<T> =
-    Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, BoxError>> + Send>>;
+type BoxedFut<T, E> = Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, E>> + Send>>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
-pub struct HttpsConnecting<T>(BoxedFut<T>);
+pub struct HttpsConnecting<T, E>(BoxedFut<T, E>);
 
-impl<T: AsyncRead + AsyncWrite + Unpin> Future for HttpsConnecting<T> {
-    type Output = Result<MaybeHttpsStream<T>, BoxError>;
+impl<T: AsyncRead + AsyncWrite + Unpin, E> Future for HttpsConnecting<T, E> {
+    type Output = Result<MaybeHttpsStream<T>, E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx)
     }
 }
 
-impl<T> fmt::Debug for HttpsConnecting<T> {
+impl<T, E> fmt::Debug for HttpsConnecting<T, E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.pad("HttpsConnecting")
     }
 }
-
-// ===== Custom Errors =====
-
-#[derive(Debug)]
-struct ForceHttpsButUriNotHttps;
-
-impl fmt::Display for ForceHttpsButUriNotHttps {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("https required but URI was not https")
-    }
-}
-
-impl std::error::Error for ForceHttpsButUriNotHttps {}
