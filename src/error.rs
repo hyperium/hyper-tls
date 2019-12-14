@@ -6,6 +6,9 @@ pub enum HttpsConnectorError<E: Send> {
     HttpConnector(E),
     /// `native_tls` failed when setting up a TLS connection.
     NativeTls(native_tls::Error),
+
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 impl<E: Send + std::fmt::Debug> std::fmt::Debug for HttpsConnectorError<E> {
@@ -22,6 +25,7 @@ impl<E: Send + std::fmt::Debug> std::fmt::Debug for HttpsConnectorError<E> {
                 .debug_tuple("HttpsConnectorError::NativeTls")
                 .field(err)
                 .finish(),
+            HttpsConnectorError::__Nonexhaustive => unimplemented!(),
         }
     }
 }
@@ -34,6 +38,7 @@ impl<E: Send + std::fmt::Display> std::fmt::Display for HttpsConnectorError<E> {
             }
             HttpsConnectorError::HttpConnector(err) => write!(f, "http connector error: {}", err),
             HttpsConnectorError::NativeTls(err) => write!(f, "native tls error: {}", err),
+            HttpsConnectorError::__Nonexhaustive => unimplemented!(),
         }
     }
 }
@@ -44,6 +49,7 @@ impl<E: Send + std::error::Error + 'static> std::error::Error for HttpsConnector
             HttpsConnectorError::ForceHttpsButUriNotHttps => None,
             HttpsConnectorError::HttpConnector(err) => Some(err),
             HttpsConnectorError::NativeTls(err) => Some(err),
+            HttpsConnectorError::__Nonexhaustive => unimplemented!(),
         }
     }
 }
