@@ -12,14 +12,16 @@ impl<E: Send + std::fmt::Debug> std::fmt::Debug for HttpsConnectorError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HttpsConnectorError::ForceHttpsButUriNotHttps => {
-                write!(f, "HttpsConnectorError::ForceHttpsButUriNotHttps")
+                f.write_str("HttpsConnectorError::ForceHttpsButUriNotHttps")
             }
-            HttpsConnectorError::HttpConnector(err) => {
-                write!(f, "HttpsConnectorError::HttpConnector({:?})", err)
-            }
-            HttpsConnectorError::NativeTls(err) => {
-                write!(f, "HttpsConnectorError::NativeTls({:?})", err)
-            }
+            HttpsConnectorError::HttpConnector(err) => f
+                .debug_tuple("HttpsConnectorError::HttpConnector")
+                .field(err)
+                .finish(),
+            HttpsConnectorError::NativeTls(err) => f
+                .debug_tuple("HttpsConnectorError::NativeTls")
+                .field(err)
+                .finish(),
         }
     }
 }
