@@ -3,6 +3,7 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use bytes::{Buf, BufMut};
 use hyper::client::connect::{Connected, Connection};
 use tokio::io::{AsyncRead, AsyncWrite};
 pub use tokio_tls::TlsStream;
@@ -58,6 +59,18 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeHttpsStream<T> {
             MaybeHttpsStream::Https(s) => Pin::new(s).poll_read(cx, buf),
         }
     }
+
+    #[inline]
+    fn poll_read_buf<B: BufMut>(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut B,
+    ) -> Poll<Result<usize, io::Error>> {
+        match Pin::get_mut(self) {
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_read_buf(cx, buf),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_read_buf(cx, buf),
+        }
+    }
 }
 
 impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
@@ -70,6 +83,18 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
         match Pin::get_mut(self) {
             MaybeHttpsStream::Http(s) => Pin::new(s).poll_write(cx, buf),
             MaybeHttpsStream::Https(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+
+    #[inline]
+    fn poll_write_buf<B: Buf>(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut B,
+    ) -> Poll<Result<usize, io::Error>> {
+        match Pin::get_mut(self) {
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_write_buf(cx, buf),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_write_buf(cx, buf),
         }
     }
 
