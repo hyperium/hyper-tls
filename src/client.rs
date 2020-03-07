@@ -54,7 +54,7 @@ impl HttpsConnector<HttpConnector> {
 
 impl<T: Default> Default for HttpsConnector<T> {
     fn default() -> Self {
-        Self::new_with_connector(Default::default())
+        Self::with_connector(Default::default())
     }
 }
 
@@ -68,10 +68,10 @@ impl<T> HttpsConnector<T> {
     
     /// With connector constructor
     /// 
-    pub fn new_with_connector(http: T) -> Self {
+    pub fn with_connector(http: T) -> Self {
         native_tls::TlsConnector::new()
             .map(|tls| HttpsConnector::from((http, tls.into())))
-            .unwrap_or_else(|e| panic!("HttpsConnector::new_with_connector(<connector>) failure: {}", e))
+            .unwrap_or_else(|e| panic!("HttpsConnector::with_connector(<connector>) failure: {}", e))
     }
 }
 
