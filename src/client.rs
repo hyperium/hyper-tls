@@ -125,7 +125,7 @@ where
             return err(ForceHttpsButUriNotHttps.into());
         }
 
-        let host = dst.host().unwrap_or("").to_owned();
+        let host = dst.host().unwrap_or("").trim_matches(|c| c == '[' || c == ']').to_owned();
         let connecting = self.http.call(dst);
         let tls = self.tls.clone();
         let fut = async move {
