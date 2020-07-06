@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use bytes::{Buf, BufMut};
 use hyper::client::connect::{Connected, Connection};
 use tokio::io::{AsyncRead, AsyncWrite};
-pub use tokio_native_tls::TlsStream;
+pub use tokio_tls::TlsStream;
 
 /// A stream that might be protected with TLS.
 pub enum MaybeHttpsStream<T> {
@@ -119,7 +119,7 @@ impl<T: AsyncRead + AsyncWrite + Connection + Unpin> Connection for MaybeHttpsSt
     fn connected(&self) -> Connected {
         match self {
             MaybeHttpsStream::Http(s) => s.connected(),
-            MaybeHttpsStream::Https(s) => s.get_ref().get_ref().get_ref().connected(),
+            MaybeHttpsStream::Https(s) => s.get_ref().connected(),
         }
     }
 }

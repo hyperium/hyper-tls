@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use hyper::{client::connect::HttpConnector, service::Service, Uri};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_native_tls::TlsConnector;
+use tokio_tls::TlsConnector;
 
 use crate::stream::MaybeHttpsStream;
 
@@ -125,7 +125,8 @@ where
             return err(ForceHttpsButUriNotHttps.into());
         }
 
-        let host = dst.host().unwrap_or("").trim_matches(|c| c == '[' || c == ']').to_owned();
+        let host = dst.host().unwrap_or("").to_owned();
+
         let connecting = self.http.call(dst);
         let tls = self.tls.clone();
         let fut = async move {
