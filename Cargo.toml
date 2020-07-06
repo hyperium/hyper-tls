@@ -18,7 +18,7 @@ bytes = "0.5"
 native-tls = "0.2"
 hyper = { version = "0.13", default-features = false, features = ["tcp"] }
 tokio = { version = "0.2" }
-tokio-native-tls = "0.1"
+tokio-tls = "0.3"
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["io-std", "macros"] }
