@@ -15,6 +15,7 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 #[derive(Clone)]
 pub struct HttpsConnector<T> {
     force_https: bool,
+    sni_host: Option<String>,
     http: T,
     tls: TlsConnector,
 }
@@ -65,13 +66,25 @@ impl<T> HttpsConnector<T> {
     pub fn https_only(&mut self, enable: bool) {
         self.force_https = enable;
     }
-    
+
+    /// Set the host which should be used for Server Name Indication (SNI).
+    ///
+    /// if the `sni_host` is not set the default host from URI will be used
+    pub fn sni_host(&mut self, host: &str) {
+        self.sni_host = Some(String::from(host));
+    }
+
     /// With connector constructor
-    /// 
+    ///
     pub fn new_with_connector(http: T) -> Self {
         native_tls::TlsConnector::new()
             .map(|tls| HttpsConnector::from((http, tls.into())))
-            .unwrap_or_else(|e| panic!("HttpsConnector::new_with_connector(<connector>) failure: {}", e))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "HttpsConnector::new_with_connector(<connector>) failure: {}",
+                    e
+                )
+            })
     }
 }
 
@@ -79,6 +92,7 @@ impl<T> From<(T, TlsConnector)> for HttpsConnector<T> {
     fn from(args: (T, TlsConnector)) -> HttpsConnector<T> {
         HttpsConnector {
             force_https: false,
+            sni_host: None,
             http: args.0,
             tls: args.1,
         }
@@ -120,15 +134,21 @@ where
             return err(ForceHttpsButUriNotHttps.into());
         }
 
-        let host = dst.host().unwrap_or("").trim_matches(|c| c == '[' || c == ']').to_owned();
+        let host = match self.sni_host.as_ref() {
+            Some(host) => host.to_owned(),
+            None => dst
+                .host()
+                .unwrap_or("")
+                .trim_matches(|c| c == '[' || c == ']')
+                .to_owned(),
+        };
+
         let connecting = self.http.call(dst);
         let tls = self.tls.clone();
         let fut = async move {
             let tcp = connecting.await.map_err(Into::into)?;
             let maybe = if is_https {
-                let tls = tls
-                    .connect(&host, tcp)
-                    .await?;
+                let tls = tls.connect(&host, tcp).await?;
                 MaybeHttpsStream::Https(tls)
             } else {
                 MaybeHttpsStream::Http(tcp)
@@ -143,8 +163,7 @@ fn err<T>(e: BoxError) -> HttpsConnecting<T> {
     HttpsConnecting(Box::pin(async { Err(e) }))
 }
 
-type BoxedFut<T> =
-    Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, BoxError>> + Send>>;
+type BoxedFut<T> = Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, BoxError>> + Send>>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
