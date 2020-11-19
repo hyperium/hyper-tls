@@ -66,6 +66,26 @@ impl<T: AsyncWrite + AsyncRead + Unpin> AsyncWrite for MaybeHttpsStream<T> {
     }
 
     #[inline]
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<Result<usize, io::Error>> {
+        match Pin::get_mut(self) {
+            MaybeHttpsStream::Http(s) => Pin::new(s).poll_write_vectored(cx, bufs),
+            MaybeHttpsStream::Https(s) => Pin::new(s).poll_write_vectored(cx, bufs),
+        }
+    }
+
+    #[inline]
+    fn is_write_vectored(&self) -> bool {
+        match self {
+            MaybeHttpsStream::Http(s) => s.is_write_vectored(),
+            MaybeHttpsStream::Https(s) => s.is_write_vectored(),
+        }
+    }
+
+    #[inline]
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         match Pin::get_mut(self) {
             MaybeHttpsStream::Http(s) => Pin::new(s).poll_flush(cx),
