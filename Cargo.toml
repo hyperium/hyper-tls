@@ -14,11 +14,14 @@ edition = "2018"
 vendored = ["native-tls/vendored"]
 
 [dependencies]
-bytes = "0.5"
-native-tls = "0.2"
-hyper = { version = "0.13", default-features = false, features = ["tcp"] }
-tokio = { version = "0.2" }
-tokio-tls = "0.3"
+bytes = "1.0.0"
+native-tls = "0.2.6"
+hyper = { version = "0.14.1", default-features = false, features = ["tcp", "client", "http1", "http2"] }
+tokio = "1.0.0"
+tokio-native-tls = "0.2.0"
+
+[patch.crates-io]
+tokio-native-tls = { git = "https://github.com/tokio-rs/tls.git", rev = "44e978cfa6e46294c0e352fad820456dbe94bdaa" }
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["io-std", "macros"] }
+tokio = { version = "1.0.0", features = ["io-std", "macros"] }
