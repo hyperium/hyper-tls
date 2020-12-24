@@ -18,10 +18,7 @@ bytes = "1.0.0"
 native-tls = "0.2.6"
 hyper = { version = "0.14.1", default-features = false, features = ["tcp", "client", "http1", "http2"] }
 tokio = "1.0.0"
-tokio-native-tls = "0.2.0"
-
-[patch.crates-io]
-tokio-native-tls = { git = "https://github.com/tokio-rs/tls.git", rev = "44e978cfa6e46294c0e352fad820456dbe94bdaa" }
+tokio-native-tls = "0.3.0"
 
 [dev-dependencies]
 tokio = { version = "1.0.0", features = ["io-std", "macros"] }
