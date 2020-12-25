@@ -6,7 +6,7 @@
 //!
 //! ## Example
 //!
-//! ```no_run
+//! ```
 //! use hyper_tls::HttpsConnector;
 //! use hyper::Client;
 //!
