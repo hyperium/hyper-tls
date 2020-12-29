@@ -14,11 +14,12 @@ edition = "2018"
 vendored = ["native-tls/vendored"]
 
 [dependencies]
-bytes = "0.5"
-native-tls = "0.2"
-hyper = { version = "0.13", default-features = false, features = ["tcp"] }
-tokio = { version = "0.2" }
-tokio-tls = "0.3"
+bytes = "1"
+native-tls = "0.2.1"
+hyper = { version = "0.14.2", default-features = false, features = ["tcp", "client"] }
+tokio = "1"
+tokio-native-tls = "0.3"
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["io-std", "macros"] }
+tokio = { version = "1.0.0", features = ["io-std", "macros", "io-util"] }
+hyper = { version = "0.14.2", default-features = false, features = ["http1"] }
