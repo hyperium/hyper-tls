@@ -105,7 +105,19 @@ impl<T: AsyncRead + AsyncWrite + Connection + Unpin> Connection for MaybeHttpsSt
     fn connected(&self) -> Connected {
         match self {
             MaybeHttpsStream::Http(s) => s.connected(),
-            MaybeHttpsStream::Https(s) => s.get_ref().get_ref().get_ref().connected(),
+            MaybeHttpsStream::Https(s) => {
+                let tls = s.get_ref();
+                if tls
+                    .negotiated_alpn()
+                    .ok()
+                    .flatten()
+                    .map_or(false, |p| p == b"h2")
+                {
+                    tls.get_ref().get_ref().connected().negotiated_h2()
+                } else {
+                    tls.get_ref().get_ref().connected()
+                }
+            }
         }
     }
 }
