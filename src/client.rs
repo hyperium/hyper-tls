@@ -27,7 +27,7 @@ impl HttpsConnector<HttpConnector> {
     ///
     /// # Note
     ///
-    /// By default this connector will use plain HTTP if the URL provded uses
+    /// By default this connector will use plain HTTP if the URL provided uses
     /// the HTTP scheme (eg: http://example.com/).
     ///
     /// If you would like to force the use of HTTPS then call https_only(true)
