@@ -40,7 +40,9 @@ impl HttpsConnector<HttpConnector> {
     /// To handle that error yourself, you can use the `HttpsConnector::from`
     /// constructor after trying to make a `TlsConnector`.
     pub fn new() -> Self {
-        native_tls::TlsConnector::new()
+        native_tls::TlsConnector::builder()
+            .request_alpns(&["h2", "http/1.1"])
+            .build()
             .map(|tls| HttpsConnector::new_(tls.into()))
             .unwrap_or_else(|e| panic!("HttpsConnector::new() failure: {}", e))
     }
