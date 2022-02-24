@@ -1,13 +1,15 @@
+use std::convert::TryFrom;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use hyper::{client::connect::HttpConnector, service::Service, Uri};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_native_tls::TlsConnector;
 
 use crate::stream::MaybeHttpsStream;
+use crate::TlsConnector;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -40,9 +42,7 @@ impl HttpsConnector<HttpConnector> {
     /// To handle that error yourself, you can use the `HttpsConnector::from`
     /// constructor after trying to make a `TlsConnector`.
     pub fn new() -> Self {
-        native_tls::TlsConnector::new()
-            .map(|tls| HttpsConnector::new_(tls.into()))
-            .unwrap_or_else(|e| panic!("HttpsConnector::new() failure: {}", e))
+        Self::new_(default_tls_connector())
     }
 
     fn new_(tls: TlsConnector) -> Self {
@@ -50,6 +50,53 @@ impl HttpsConnector<HttpConnector> {
         http.enforce_http(false);
         HttpsConnector::from((http, tls))
     }
+}
+
+#[cfg(not(feature = "rustls"))]
+fn default_tls_connector() -> TlsConnector {
+    native_tls::TlsConnector::new().map(|v| v.into())
+        .unwrap_or_else(|e| panic!("native_tls::TlsConnector::new() failure: {}", e))
+}
+
+#[cfg(feature = "rustls")]
+fn default_tls_connector() -> TlsConnector {
+    use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+
+    let mut trusted_certs = RootCertStore::empty();
+
+    #[cfg(not(feature = "rustls-webpki-rools"))]
+    {
+        let certificates = rustls_native_certs::load_native_certs()
+            .expect("failed to load native certificates");
+        for cert in certificates {
+            trusted_certs.add_parsable_certificates(&[cert.0]);
+        }
+    }
+
+    #[cfg(feature = "rustls-webpki-rools")]
+    {
+        use tokio_rustls::rustls::OwnedTrustAnchor;
+
+        trusted_certs.add_server_trust_anchors(
+            webpki_roots::TLS_SERVER_ROOTS
+                .0
+                .iter()
+                .map(|ta| {
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(
+                        ta.subject,
+                        ta.spki,
+                        ta.name_constraints,
+                    )
+                }),
+        );
+    }
+
+    let config = ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(trusted_certs)
+        .with_no_client_auth();
+
+    TlsConnector::from(Arc::new(config))
 }
 
 impl<T: Default> Default for HttpsConnector<T> {
@@ -69,14 +116,7 @@ impl<T> HttpsConnector<T> {
     /// With connector constructor
     ///
     pub fn new_with_connector(http: T) -> Self {
-        native_tls::TlsConnector::new()
-            .map(|tls| HttpsConnector::from((http, tls.into())))
-            .unwrap_or_else(|e| {
-                panic!(
-                    "HttpsConnector::new_with_connector(<connector>) failure: {}",
-                    e
-                )
-            })
+        HttpsConnector::from((http, default_tls_connector()))
     }
 }
 
@@ -100,11 +140,11 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
 }
 
 impl<T> Service<Uri> for HttpsConnector<T>
-where
-    T: Service<Uri>,
-    T::Response: AsyncRead + AsyncWrite + Send + Unpin,
-    T::Future: Send + 'static,
-    T::Error: Into<BoxError>,
+    where
+        T: Service<Uri>,
+        T::Response: AsyncRead + AsyncWrite + Send + Unpin,
+        T::Future: Send + 'static,
+        T::Error: Into<BoxError>,
 {
     type Response = MaybeHttpsStream<T::Response>;
     type Error = BoxError;
@@ -135,7 +175,15 @@ where
         let fut = async move {
             let tcp = connecting.await.map_err(Into::into)?;
             let maybe = if is_https {
-                let tls = tls.connect(&host, tcp).await?;
+                #[cfg(feature = "rustls")]
+                    let tls = {
+                    let server_name = tokio_rustls::rustls::ServerName::try_from(host.as_str())?;
+                    tokio_rustls::TlsStream::Client(tls.connect(server_name, tcp).await?)
+                };
+
+                #[cfg(not(feature = "rustls"))]
+                    let tls = tls.connect(&host, tcp).await?;
+
                 MaybeHttpsStream::Https(tls)
             } else {
                 MaybeHttpsStream::Http(tcp)
@@ -150,7 +198,7 @@ fn err<T>(e: BoxError) -> HttpsConnecting<T> {
     HttpsConnecting(Box::pin(async { Err(e) }))
 }
 
-type BoxedFut<T> = Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, BoxError>> + Send>>;
+type BoxedFut<T> = Pin<Box<dyn Future<Output=Result<MaybeHttpsStream<T>, BoxError>> + Send>>;
 
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
