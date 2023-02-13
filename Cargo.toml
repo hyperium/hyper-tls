@@ -17,7 +17,7 @@ vendored = ["native-tls/vendored"]
 bytes = "1"
 native-tls = "0.2.1"
 hyper = { version = "0.14.2", default-features = false, features = ["tcp", "client"] }
-tokio = "1"
+tokio = "1.25.0"
 tokio-native-tls = "0.3"
 
 [dev-dependencies]
