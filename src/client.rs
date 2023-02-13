@@ -3,9 +3,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use hyper::{client::connect::HttpConnector, service::Service, Uri};
+use hyper::{client::HttpConnector, service::Service, Uri};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tls::TlsConnector;
+use tokio_native_tls::TlsConnector;
 
 use crate::stream::MaybeHttpsStream;
 
