@@ -2,7 +2,7 @@ use hyper::{
     rt::{Read, Write},
     Uri,
 };
-use hyper_util::{client::connect::HttpConnector, rt::TokioIo};
+use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioIo};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
