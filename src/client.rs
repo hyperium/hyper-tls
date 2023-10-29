@@ -1,11 +1,14 @@
+use hyper::{
+    rt::{Read, Write},
+    Uri,
+};
+use hyper_util::{client::connect::HttpConnector, rt::TokioIo};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-use hyper::{client::connect::HttpConnector, service::Service, Uri};
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_native_tls::TlsConnector;
+use tower_service::Service;
 
 use crate::stream::MaybeHttpsStream;
 
@@ -20,7 +23,7 @@ pub struct HttpsConnector<T> {
 }
 
 impl HttpsConnector<HttpConnector> {
-    /// Construct a new HttpsConnector.
+    /// Construct a new `HttpsConnector`.
     ///
     /// This uses hyper's default `HttpConnector`, and default `TlsConnector`.
     /// If you wish to use something besides the defaults, use `From::from`.
@@ -28,9 +31,9 @@ impl HttpsConnector<HttpConnector> {
     /// # Note
     ///
     /// By default this connector will use plain HTTP if the URL provided uses
-    /// the HTTP scheme (eg: http://example.com/).
+    /// the HTTP scheme (eg: <http://example.com/>).
     ///
-    /// If you would like to force the use of HTTPS then call https_only(true)
+    /// If you would like to force the use of HTTPS then call `https_only(true)`
     /// on the returned connector.
     ///
     /// # Panics
@@ -39,10 +42,12 @@ impl HttpsConnector<HttpConnector> {
     ///
     /// To handle that error yourself, you can use the `HttpsConnector::from`
     /// constructor after trying to make a `TlsConnector`.
+    #[must_use]
     pub fn new() -> Self {
-        native_tls::TlsConnector::new()
-            .map(|tls| HttpsConnector::new_(tls.into()))
-            .unwrap_or_else(|e| panic!("HttpsConnector::new() failure: {}", e))
+        native_tls::TlsConnector::new().map_or_else(
+            |e| panic!("HttpsConnector::new() failure: {}", e),
+            |tls| HttpsConnector::new_(tls.into()),
+        )
     }
 
     fn new_(tls: TlsConnector) -> Self {
@@ -68,15 +73,22 @@ impl<T> HttpsConnector<T> {
 
     /// With connector constructor
     ///
+    /// # Panics
+    ///
+    /// This will panic if the underlying TLS context could not be created.
+    ///
+    /// To handle that error yourself, you can use the `HttpsConnector::from`
+    /// constructor after trying to make a `TlsConnector`.
     pub fn new_with_connector(http: T) -> Self {
-        native_tls::TlsConnector::new()
-            .map(|tls| HttpsConnector::from((http, tls.into())))
-            .unwrap_or_else(|e| {
+        native_tls::TlsConnector::new().map_or_else(
+            |e| {
                 panic!(
                     "HttpsConnector::new_with_connector(<connector>) failure: {}",
                     e
                 )
-            })
+            },
+            |tls| HttpsConnector::from((http, tls.into())),
+        )
     }
 }
 
@@ -95,14 +107,14 @@ impl<T: fmt::Debug> fmt::Debug for HttpsConnector<T> {
         f.debug_struct("HttpsConnector")
             .field("force_https", &self.force_https)
             .field("http", &self.http)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl<T> Service<Uri> for HttpsConnector<T>
 where
     T: Service<Uri>,
-    T::Response: AsyncRead + AsyncWrite + Send + Unpin,
+    T::Response: Read + Write + Send + Unpin,
     T::Future: Send + 'static,
     T::Error: Into<BoxError>,
 {
@@ -131,11 +143,16 @@ where
             .trim_matches(|c| c == '[' || c == ']')
             .to_owned();
         let connecting = self.http.call(dst);
-        let tls = self.tls.clone();
+
+        let tls_connector = self.tls.clone();
+
         let fut = async move {
             let tcp = connecting.await.map_err(Into::into)?;
+
             let maybe = if is_https {
-                let tls = tls.connect(&host, tcp).await?;
+                let stream = TokioIo::new(tcp);
+
+                let tls = TokioIo::new(tls_connector.connect(&host, stream).await?);
                 MaybeHttpsStream::Https(tls)
             } else {
                 MaybeHttpsStream::Http(tcp)
@@ -155,7 +172,7 @@ type BoxedFut<T> = Pin<Box<dyn Future<Output = Result<MaybeHttpsStream<T>, BoxEr
 /// A Future representing work to connect to a URL, and a TLS handshake.
 pub struct HttpsConnecting<T>(BoxedFut<T>);
 
-impl<T: AsyncRead + AsyncWrite + Unpin> Future for HttpsConnecting<T> {
+impl<T: Read + Write + Unpin> Future for HttpsConnecting<T> {
     type Output = Result<MaybeHttpsStream<T>, BoxError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
