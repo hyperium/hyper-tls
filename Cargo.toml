@@ -19,7 +19,7 @@ native-tls = "0.2.1"
 hyper = { version = "1.0.0-rc.4", default-features = false }
 hyper-util = { git = "https://github.com/hyperium/hyper-util", default-features = false, features = [
     "client",
-], rev = "ced9f812460420017705fa7cae4dca7be9e23f4a" }
+], rev = "11776bd742196691d03203caa0f4acd29df696bd" }
 tokio = "1"
 tokio-native-tls = "0.3"
 tower-service = "0.3"
@@ -29,4 +29,4 @@ http-body-util = "0.1.0-rc.3"
 tokio = { version = "1.0.0", features = ["io-std", "macros", "io-util"] }
 hyper-util = { git = "https://github.com/hyperium/hyper-util", default-features = false, features = [
     "http1",
-], rev = "ced9f812460420017705fa7cae4dca7be9e23f4a" }
+], rev = "11776bd742196691d03203caa0f4acd29df696bd" }
