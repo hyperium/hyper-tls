@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use hyper::rt::{Read, ReadBufCursor, Write};
 
 use hyper_util::{
-    client::connect::{Connected, Connection},
+    client::legacy::connect::{Connected, Connection},
     rt::TokioIo,
 };
 pub use tokio_native_tls::TlsStream;
