@@ -111,13 +111,28 @@ impl<T: Write + Read + Unpin> Write for MaybeHttpsStream<T> {
     }
 }
 
-impl<T: Connection + Unpin> Connection for MaybeHttpsStream<T> {
+impl<T: Write + Read + Connection + Unpin> Connection for MaybeHttpsStream<T> {
     fn connected(&self) -> Connected {
         match self {
             MaybeHttpsStream::Http(s) => s.connected(),
             MaybeHttpsStream::Https(s) => {
-                s.inner().get_ref().get_ref().get_ref().inner().connected()
+                let c = s.inner().get_ref().get_ref().get_ref().inner().connected();
+                #[cfg(feature = "alpn")]
+                {
+                    if negotiated_h2(s.inner().get_ref()) {
+                        return c.negotiated_h2();
+                    }
+                }
+                c
             }
         }
     }
+}
+
+#[cfg(feature = "alpn")]
+fn negotiated_h2<T: std::io::Read + std::io::Write>(s: &native_tls::TlsStream<T>) -> bool {
+    s.negotiated_alpn()
+        .unwrap_or(None)
+        .map(|list| list == &b"h2"[..])
+        .unwrap_or(false)
 }
