@@ -11,6 +11,7 @@ documentation = "https://docs.rs/hyper-tls"
 edition = "2018"
 
 [features]
+alpn = ["native-tls/alpn"]
 vendored = ["native-tls/vendored"]
 
 [dependencies]

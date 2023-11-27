@@ -22,6 +22,10 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Crate Features
+//!
+//! - `alpn`: Enables `native-tls/alpn`, and if `h2` is negotiated, tells hyper.
 #![doc(html_root_url = "https://docs.rs/hyper-tls/0.5.0")]
 #![cfg_attr(test, deny(warnings))]
 #![deny(missing_docs)]
