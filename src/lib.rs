@@ -26,6 +26,7 @@
 //! ## Crate Features
 //!
 //! - `alpn`: Enables `native-tls/alpn`, and if `h2` is negotiated, tells hyper.
+//! - `vendored`: Enables `native-tls/vendored`, removing dependency on OpenSSL.
 #![doc(html_root_url = "https://docs.rs/hyper-tls/0.6.0")]
 #![cfg_attr(test, deny(warnings))]
 #![deny(missing_docs)]
