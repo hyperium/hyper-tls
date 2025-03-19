@@ -62,13 +62,10 @@ jobs:
       - run: cargo test
 
   msrv:
-    name: Check MSRV (${{ matrix.rust }})
+    name: Check MSRV
     needs: [style]
     strategy:
       matrix:
-        rust:
-          - 1.63 # keep in sync with MSRV.md dev doc
-
         os:
           - ubuntu-latest
 
@@ -77,10 +74,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (${{ matrix.rust }})
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve MSRV aware dependencies
+        run: cargo update
+        env:
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+
+      - name: Get MSRV from package metadata
+        id: msrv
+        run: echo "version=$(yq '.package.rust-version' Cargo.toml)" >> $GITHUB_OUTPUT
+
+      - name: Install Rust (${{ steps.msrv.outputs.version }})
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ steps.msrv.outputs.version }}
 
       - run: cargo check --features vendored
 
