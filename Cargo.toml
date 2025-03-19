@@ -9,6 +9,7 @@ homepage = "https://hyper.rs"
 repository = "https://github.com/hyperium/hyper-tls"
 documentation = "https://docs.rs/hyper-tls"
 edition = "2018"
+rust-version = "1.63"
 
 [features]
 alpn = ["native-tls/alpn"]
